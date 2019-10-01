@@ -8,4 +8,4 @@ To enable a finegrained mix-precision quantization on a light-weight model, we a
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.latex?\Large&space;S=\frac{\alpha*T_{range}}{2^{[\beta*n]}-1}" title="Method" style="text-align: center"/>
-<\div>
+</div>

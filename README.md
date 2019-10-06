@@ -1,8 +1,9 @@
 # Adjustable-Quantization-MicroNet
-### This is the submission for MicroNet Challenge hosted at NIPS 2019.
+#### This is the submission for MicroNet Challenge hosted at NIPS 2019.
 
 ### Solution
 Our method is called **Adjustable Quantization**, a finegrained mix-precision quantization scheme which is extremely fast to reach convergence started from a pretrained float32 model.
+
 Metric: 0.187445 @ 75.064% Top 1 accuracy on ImageNet
 
 ### Main Idea: Adjustable Quantization Range + Adjustable Precision

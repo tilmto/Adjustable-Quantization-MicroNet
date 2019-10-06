@@ -1,6 +1,9 @@
 # Adjustable-Quantization-MicroNet
 #### This is the submission for MicroNet Challenge hosted at NIPS 2019.
 
+### Team
+Yonggan Fu, Ruiyang Zhao, Yue Wang, Zhangyang Wang, Yingyan Lin
+
 ### Solution
 Our method is called **Adjustable Quantization**, a finegrained mix-precision quantization scheme which is extremely fast to reach convergence started from a pretrained float32 model.
 
@@ -21,5 +24,33 @@ To enable a better initialization of EfficientNet-B0 before applying Adjustable 
 
 
 ### File Utilization
-**adj_quant** : root directory containing all the source codes
-**initial_thresholds** : the min/max thresholds of the 
+**pretrained** : pretrained float32 Slim-based EfficientNet-B0, and EfficientNet-B0 after Quantization Aware Training
+**adj_quant** : root directory containing all the source codes of Adjustable Quantization
+**adj_quant/logs** : tensorboard information collected during training
+**adj_quant/weights** : checkpoints saved during training
+**adj_quant/best_ckpt** : current best checkpoint with challenge metric 0.187445 @ 75.064% Top 1 accuracy on ImageNet 
+**adj_quant/initial_thresholds.json** : the intial min/max quantization range of the each channel in weights and activations 
+**adj_quant/model_info.json** : the Params/Flops of each layer in EfficientNet-B0
+**adj_quant/data.py** : read training/validation images in tfrecord format
+**adj_quant/imagenet.py** : necessary functions for reading ImageNet
+**adj_quant/dataset_utils.py** : necessary function for reading ImageNet
+**adj_quant/prepare_weights.py** : extract the weights from a pretrained Slim-based model to a pickle file as the initialization of Adjustable Quantization
+**adj_quant/train.py** : train EfficientNet-B0 with Adjustable Quantization
+**adj_quant/eval.py** : evaluate the accuracy and metric a saved checkpoint file
+**adj_quant/scripts/effnetb0** : build model with Adjustable Quantization Nodes
+**adj_quant/scripts/trainer** : training strategy and evaluation strategy
+**adj_quant/scripts/thresholds.py** : fetch initial quantization range
+
+### How to evaluate the accuracy and metric
+To know the usage of command line parameters, please use:
+```
+python train.py --help
+```
+or
+```
+python eval.py --help
+```
+To check the accuracy and metric of the provided checkpoint, use the following commands:
+```
+python eval.py --weight_bits 8 --act_bits 8 --swish_bits 8 --batch_size 50 --bits_trainable --ckpt_path best_ckpt/ckpt_metric_0.187445.ckpt --dataset path_to_imagenet_tfrecord
+```

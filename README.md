@@ -26,9 +26,9 @@ To enable a better initialization of EfficientNet-B0 before applying Adjustable 
 ### File Utilization
 **slim** : self-customized Slim training package based on [Slim](https://github.com/tensorflow/models/tree/master/research/slim), which is used to generate pretrained float32 EfficientNet-B0 and quantized EfficientNet-B0 base on QAT
 
-**adj_quant** : root directory containing all the source codes of Adjustable Quantization
+**pretrained** : pretrained float32 Slim-based EfficientNet-B0, and EfficientNet-B0 after Quantization Aware Training
 
-**adj_quant/pretrained** : pretrained float32 Slim-based EfficientNet-B0, and EfficientNet-B0 after Quantization Aware Training
+**adj_quant** : root directory containing all the source codes of Adjustable Quantization
 
 **adj_quant/logs** : tensorboard information collected during training
 
@@ -134,7 +134,7 @@ python train.py --weight_bits 8 \
 After finetung, we can achieve the best metric which satisfies the 75% accuracy requirement.
 
 ##### Generate prerequired files step by step 
-If you want to generate the checkpoint files in pickle format in **pretrained** directory and **initial_thresholds.json** by yourself, you can follow the instructions here. We first convert the official EfficientNet-B0 [checkpoint](https://github.com/tensorflow/tpu/tree/master/models/official/efficientnet) to our Slim-based version and then conduct the Quantization Aware Training to get the weight and threshold as initialization for Adjustable Quantization. To know more details about tensorflow-Slim usage, please refer to their official [github](https://github.com/tensorflow/models/tree/master/research/slim).
+If you want to generate the checkpoint files in pickle format in **pretrained** directory and **initial_thresholds.json** by yourself, you can follow the instructions here. We first convert the official EfficientNet-B0 checkpoint to our Slim-based version and then conduct the Quantization Aware Training to get the weight and threshold as initialization for Adjustable Quantization. To know more details about tensorflow-Slim usage, please refer to their official [github](https://github.com/tensorflow/models/tree/master/research/slim).
 
 First, to generate the self-implemented EfficientNet-B0 checkpoint, you need to run:
 ```
@@ -149,14 +149,91 @@ python train_image_classifier.py \
    --label_smoothing=0.1 \
    --moving_average_decay=0.9999 \
    --batch_size=80 \
-   --learning_rate_decay_type fixed \
+   --learning_rate_decay_type=fixed \
    --learning_rate=1e-4 \
    --learning_rate_decay_factor=0.98 \
    --num_epochs_per_decay=2.5 \
    --num_clones=1 \
-   --num_readers 8 \
-   --num_preprocessing_threads 8 \
-   --ignore_missing_vars True  \
+   --num_readers=8 \
+   --num_preprocessing_threads=8 \
+   --ignore_missing_vars=True  \
    --dataset_dir=path_to_imagenet_tfrecord 
 ```
+you don't need to care about the accurac and once you get the initial checkpoint, you can stop the training process. Then you can run the converter to convert the offcial checkpoints to Slim-based version:
+'''
+python ckpt_assigner.py src_ckpt dest_ckpt
+'''
+***src_ckpt*** is the official checkpoint downloaded [here](https://github.com/tensorflow/tpu/tree/master/models/official/efficientnet) and ***dest_ckpt*** is the Slim-based checkpoint. The converted checkpoint has 76.93% Top 1 accuracy on ImageNet.
 
+Then you can start tensorflow official Quantization Aware Training:
+```
+cd slim
+python train_image_classifier.py \
+   --train_dir=logs \
+   --train_image_size=192 \
+   --model_name=efficientnet_b0 \
+   --dataset_name=imagenet \
+   --dataset_split_name=train \
+   --preprocessing_name="efficientnet_b0" \
+   --label_smoothing=0.1 \
+   --moving_average_decay=0.9999 \
+   --batch_size=32 \
+   --learning_rate_decay_type=fixed \
+   --learning_rate=1e-4 \
+   --learning_rate_decay_factor=0.98 \
+   --num_epochs_per_decay=2.5 \
+   --num_clones=1 \
+   --num_readers=32 \
+   --num_preprocessing_threads=32 \
+   --ignore_missing_vars=True \
+   --quantize_delay=0 \
+   --allow_growth=False \
+   --checkpoint_path=path_to_float32_ckpt \
+   --dataset_dir=path_to_imagenet_tfrecord 
+```
+***quant_delay*** is used to start Quantization Aware Training with 8-bit weight and 8-bit activation. After several epoches, we can get a checkpoint with about 74.8% Top 1 accuracy.
+
+Since the model with Adjustable Quantization utilizes pickle format file for both weight initialization and float32 teacher model (for knowledge distillation), we need to convert the float32 checkpoint and quantized checkpoint into pickle format. We first freeze our model to *.pb* file and then extract the weights to a *.pickle* file.
+
+For float32 model, freeze the checkpoint to a *.pb* file:
+```
+cd slim
+python export_inference_graph.py \
+  --alsologtostderr \
+  --model_name=efficientnet_b0 \
+  --image_size=224 \
+  --output_file=../adj_quant/pretrained/efficient_b0_autoaugment/efficientnet_b0.pb
+python freeze_graph.py \
+  --input_graph=../pretrained/efficient_b0_autoaugment/efficientnet_b0.pb \
+  --input_checkpoint=path_to_float32_ckpt \
+  --input_binary=true \
+  --output_graph=../pretrained/efficient_b0_autoaugment/frozen_efficientnet_b0.pb \
+  --output_node_names=efficientnet_b0/Predictions/Reshape_1
+```
+
+For quantized model, freeze the checkpoint to a *.pb* file:
+```
+cd slim
+python export_inference_graph.py \
+  --quantize \
+  --alsologtostderr \
+  --model_name=efficientnet_b0 \
+  --image_size=224 \
+  --output_file=../pretrained/efficient_b0_autoaugment_quant/efficientnet_b0_quant.pb
+python freeze_graph.py \
+  --input_graph=../pretrained/efficient_b0_autoaugment_quant/efficientnet_b0_quant.pb \
+  --input_checkpoint=path_to_quantized_ckpt \
+  --input_binary=true \
+  --output_graph=../pretrained/efficient_b0_autoaugment_quant/frozen_efficientnet_b0_quant.pb \
+  --output_node_names=efficientnet_b0/Predictions/Reshape_1
+```
+
+To convert the *.pb* file into *.pickle* format, you can use the following script and command:
+```
+cd adj_quant
+python prepare_weights.py ../pretrained/efficient_b0_autoaugment/frozen_efficientnet_b0.pb
+python prepare_weights.py ../pretrained/efficient_b0_autoaugment_quant/frozen_efficientnet_b0_quant.pb
+```
+Then the *.pickle* checkpoint will be generated in the same directory with *.pb* checkpoint.
+
+If you want to regenerate the initial quantization range based on the new initialization, you can add `-e` or `--eval_initial_thresholds` command when executing the **train.py**.

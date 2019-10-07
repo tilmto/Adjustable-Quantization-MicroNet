@@ -73,7 +73,7 @@ python eval.py --help
 ```
 
 #### Environment
-Tensorflow-gpu 1.13.1, CUDA 10.0, python 3.6.0
+Tensorflow-gpu 1.13.1, CUDA 10.0, python 3.6.0, tqdm 4.32.2
 
 #### Evaluation
 To check the accuracy and metric of the provided checkpoint, use the following commands:

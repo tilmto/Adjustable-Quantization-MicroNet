@@ -242,5 +242,11 @@ Then the *.pickle* checkpoint will be generated in the same directory with *.pb*
 
 If you want to regenerate the initial quantization range based on the new initialization, you can add `-e` or `--eval_initial_thresholds` command when executing the **train.py**.
 
+To generate the **model_info.json** file which contains the #Params and #Flops of each layer in EfficientNet-B0, you can use the following command:
+```
+cd slim
+python nets/mobilenet/efficientnet_b0.py
+```
+
 ### Contact
 If you have any question about the details of our work or seek for future cooperation, please contact [yf22@rice.edu](yf22@rice.edu).

@@ -108,7 +108,7 @@ python train.py --weight_bits 8 \
 ```
 ***lr_fixed*** denotes using fixed learning rate and ***lr*** is learning rate for weights and quantization range, ***lr_bits*** is the learning rate for precision. ***alpha*** and ***beta*** are the relative weight of classification loss and metric loss. ***gamma*** is to control the gradient backward of Flops. ***max_epoch*** is the total epochs of training. ***iter_train*** enables our training strategy, i.e. enabling Adjustable Precision for 1 mini-epoch every 2 mini-epochs and fixing the precision in the other mini-epoch. The other parameters have the same usage as mentioned above.
 
-After training with the above settings, some checkpoints with good accuracy-efficiency trade-off can be acquired, but it's still not their best performance due to the complex multi-objective optimization. We can start from some checkpoints with accuracy lower than 75% (around 74.5%) and fix its precision for finetuning with [SWA](https://arxiv.org/abs/1904.11943). In this process, the metric will be fixed while the accuracy can be improved by 0.5%.
+After training with the above settings, some checkpoints with good accuracy-efficiency trade-off can be acquired, but it's still not their best performance due to the complex multi-objective optimization. We can start from the best checkpoint, set ***beta*** to be 95 and run the above training process again for a lower metric. After that, we select some new checkpoints with accuracy lower than 75% (around 74.5%) and fix its precision for finetuning 1 more epoch with [SWA](https://arxiv.org/abs/1904.11943). In this process, the metric will be fixed while the accuracy can be improved by 0.5%.
 ```
 python train.py --weight_bits 8 \
                 --act_bits 8 \

@@ -83,7 +83,7 @@ python eval.py --weight_bits 8 \
                --swish_bits 8 \
                --batch_size 50 \
                --bits_trainable \
-               --ckpt_path best_ckpt/ckpt_metric_0.185639.ckpt \
+               --ckpt_path best_ckpt/ckpt_metric_0.185639 \
                --dataset path_to_imagenet_tfrecord
 ```
 ***weight_bits*** and ***act_bits*** are the initial precision of the channels in each layer, and it will be multiplied with a channel-wise trainable scale factor saved in the checkpoint file and rounded to a integer to be the final precision of each channel in each layer. ***swish_bits*** is the precision for the input activation of swish operation. ***bits_trainable*** is used to enable Adjustable Precision. ***ckpt_path*** specifies the checkpoint file to be evaluated and you also need to specify the path to ImageNet dataset in tfrecord format. 

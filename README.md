@@ -1,4 +1,6 @@
-#### This is the submission for MicroNet Challenge hosted at NIPS 2019.
+# Adjustable Quantization for MicroNet Challenge
+
+### This is the submission for MicroNet Challenge hosted at NIPS 2019.
 
 ### Team
 ***Texas-EIC***: Yonggan Fu, Ruiyang Zhao, Yue Wang, Zhangyang Wang, Yingyan Lin

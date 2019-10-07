@@ -1,7 +1,7 @@
 #### This is the submission for MicroNet Challenge hosted at NIPS 2019.
 
 ### Team
-Yonggan Fu, Ruiyang Zhao, Yue Wang, Zhangyang Wang, Yingyan Lin
+***Rice-EIC***: Yonggan Fu, Ruiyang Zhao, Yue Wang, Zhangyang Wang, Yingyan Lin
 
 ### Solution
 Our method is called **Adjustable Quantization**, a finegrained mix-precision quantization scheme which is extremely fast to reach convergence started from a pretrained float32 model.
@@ -21,6 +21,10 @@ We introduce [Knowledge Distillation](https://arxiv.org/abs/1503.02531) and SWA 
 
 To enable a better initialization of EfficientNet-B0 before applying Adjustable Quantization, we first conduct tensorflow official Quantization Aware Training (QAT) to get the initial weights and initial quantization range. To be more specific, we implement EfficientNet-B0 structure in tensorflow [Slim](https://github.com/tensorflow/models/tree/master/research/slim) training package which has good support for QAT. Since the [official pretrained checkpoint](https://github.com/tensorflow/tpu/tree/master/models/official/efficientnet) of EfficientNet-B0 provided by the author uses TPU API, we write a script to convert the official pretrained checkpoint into our Slim-based model's checkpoint so that we can enable QAT directly within the Slim framework. After several epochs QAT, we can use the weight and quantization range of the final model as the initialization for further Adjustable Quantization. 
 
+### Result
+It's easy to control the trade-off between accuracy and efficiency in our method. For the model exactly satisfying the 75% Top 1 accuracy requirement, we averagely use 3.11 bits and 5.32 bits to represent weights and activations, which is a extremely compact model with metric 0.185639 @ 75.092% accuracy.
+
+Here's the distribution of the average precision of weights and activations in each layer of EfficientNet-B0. 
 
 ### File Utilization
 **slim** : self-customized Slim training package based on [Slim](https://github.com/tensorflow/models/tree/master/research/slim), which is used to generate pretrained float32 EfficientNet-B0 and quantized EfficientNet-B0 base on QAT
@@ -236,3 +240,6 @@ python prepare_weights.py ../pretrained/efficient_b0_autoaugment_quant/frozen_ef
 Then the *.pickle* checkpoint will be generated in the same directory with *.pb* checkpoint.
 
 If you want to regenerate the initial quantization range based on the new initialization, you can add `-e` or `--eval_initial_thresholds` command when executing the **train.py**.
+
+### Contact
+If you have any question about the details of our work or seek for future cooperation, please contact [yf22@rice.edu](yf22@rice.edu).

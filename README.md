@@ -1,4 +1,3 @@
-# Adjustable-Quantization-MicroNet
 #### This is the submission for MicroNet Challenge hosted at NIPS 2019.
 
 ### Team
@@ -7,7 +6,7 @@ Yonggan Fu, Ruiyang Zhao, Yue Wang, Zhangyang Wang, Yingyan Lin
 ### Solution
 Our method is called **Adjustable Quantization**, a finegrained mix-precision quantization scheme which is extremely fast to reach convergence started from a pretrained float32 model.
 
-Metric: 0.187445 @ 75.064% Top 1 accuracy on ImageNet
+Metric: 0.185639 @ 75.092% Top 1 accuracy on ImageNet
 
 ### Main Idea: Adjustable Quantization Range + Adjustable Precision
 To enable a finegrained mix-precision quantization on a light-weight model, we aim at refining the traditional quantization to be more adjustable according to the efficiency limitation. Based on the previous [Quantization Aware Training](https://arxiv.org/abs/1712.05877), we introduce channel-wise trainable scale factors for both quantization range and precision. To eliminate the effect of the [outliners](https://arxiv.org/abs/1803.08607), we introduce a trainable scale factor ***alpha*** for each channel to make the quantization range tp adjust itself during the quantization process. In addition, to further explore the compression potential, we give a channel-wise scale factor ***beta*** to the quantization precision so that each channel in different layers can learn to adjust its precision. Since number of parameters and FLOPS are all related with the channel precision settings, we explicitly introduce the #Params and #Flops into the loss function, controlling the trade-off between accuracy and efficiency. The quantization parameter in the [QAT paper](https://arxiv.org/abs/1712.05877) can be rewritten as ([ ] means rounding operation):  
@@ -79,7 +78,7 @@ python eval.py --weight_bits 8 \
                --swish_bits 8 \
                --batch_size 50 \
                --bits_trainable \
-               --ckpt_path best_ckpt/ckpt_metric_0.187445.ckpt \
+               --ckpt_path best_ckpt/ckpt_metric_0.185639.ckpt \
                --dataset path_to_imagenet_tfrecord
 ```
 ***weight_bits*** and ***act_bits*** are the initial precision of the channels in each layer, and it will be multiplied with a channel-wise trainable scale factor saved in the checkpoint file and rounded to a integer to be the final precision of each channel in each layer. ***swish_bits*** is the precision for the input activation of swish operation. ***bits_trainable*** is used to enable Adjustable Precision. ***ckpt_path*** specifies the checkpoint file to be evaluated and you also need to specify the path to ImageNet dataset in tfrecord format. 

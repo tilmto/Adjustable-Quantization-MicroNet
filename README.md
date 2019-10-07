@@ -22,7 +22,7 @@ We introduce [Knowledge Distillation](https://arxiv.org/abs/1503.02531) and SWA 
 To enable a better initialization of EfficientNet-B0 before applying Adjustable Quantization, we first conduct tensorflow official Quantization Aware Training (QAT) to get the initial weights and initial quantization range. To be more specific, we implement EfficientNet-B0 structure in tensorflow [Slim](https://github.com/tensorflow/models/tree/master/research/slim) training package which has good support for QAT. Since the [official pretrained checkpoint](https://github.com/tensorflow/tpu/tree/master/models/official/efficientnet) of EfficientNet-B0 provided by the author uses TPU API, we write a script to convert the official pretrained checkpoint into our Slim-based model's checkpoint so that we can enable QAT directly within the Slim framework. After several epochs QAT, we can use the weight and quantization range of the final model as the initialization for further Adjustable Quantization. 
 
 ### Result
-It's easy to control the trade-off between accuracy and efficiency in our method. For the model exactly satisfying the 75% Top 1 accuracy requirement, we averagely use 3.11 bits and 5.32 bits to represent weights and activations, which is a extremely compact model with metric 0.185639 @ 75.092% accuracy.
+It's easy to control the trade-off between accuracy and efficiency in our method. For the model exactly satisfying the 75% Top 1 accuracy requirement, we averagely use 3.04 bits and 5.07 bits to represent weights and activations, which is a extremely compact model with metric 0.185639 @ 75.092% accuracy.
 
 Here's the distribution of the average precision of weights and activations in each layer of EfficientNet-B0 after Adjustable Quantization. 
 ![weight_bits](images/weight_bits_distrib.jpg)![act_bits](images/act_bits_distrib.jpg)
@@ -38,7 +38,7 @@ Here's the distribution of the average precision of weights and activations in e
 
 **adj_quant/weights** : checkpoints saved during training
 
-**adj_quant/best_ckpt** : current best checkpoint with challenge metric 0.187445 @ 75.064% Top 1 accuracy on ImageNet 
+**adj_quant/best_ckpt** : current best checkpoint with challenge metric 0.185639 @ 75.092% Top 1 accuracy on ImageNet 
 
 **adj_quant/initial_thresholds.json** : the intial min/max quantization range of the each channel in weights and activations 
 

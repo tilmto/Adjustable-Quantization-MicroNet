@@ -1,7 +1,7 @@
 #### This is the submission for MicroNet Challenge hosted at NIPS 2019.
 
 ### Team
-***Rice-EIC***: Yonggan Fu, Ruiyang Zhao, Yue Wang, Zhangyang Wang, Yingyan Lin
+***Texas-EIC***: Yonggan Fu, Ruiyang Zhao, Yue Wang, Zhangyang Wang, Yingyan Lin
 
 ### Solution
 Our method is called **Adjustable Quantization**, a finegrained mix-precision quantization scheme which is extremely fast to reach convergence started from a pretrained float32 model.
@@ -9,7 +9,7 @@ Our method is called **Adjustable Quantization**, a finegrained mix-precision qu
 Metric: 0.185639 @ 75.092% Top 1 accuracy on ImageNet
 
 ### Main Idea: Adjustable Quantization Range + Adjustable Precision
-To enable a finegrained mix-precision quantization on a light-weight model, we aim at refining the traditional quantization to be more adjustable according to the efficiency limitation. Based on the previous [Quantization Aware Training](https://arxiv.org/abs/1712.05877), we introduce channel-wise trainable scale factors for both quantization range and precision. To eliminate the effect of the [outliners](https://arxiv.org/abs/1803.08607), we introduce a trainable scale factor ***alpha*** for each channel to make the quantization range tp adjust itself during the quantization process. In addition, to further explore the compression potential, we give a channel-wise scale factor ***beta*** to the quantization precision so that each channel in different layers can learn to adjust its precision. Since number of parameters and FLOPS are all related with the channel precision settings, we explicitly introduce the #Params and #Flops into the loss function, controlling the trade-off between accuracy and efficiency. The quantization parameter in the [QAT paper](https://arxiv.org/abs/1712.05877) can be rewritten as ([ ] means rounding operation):  
+To enable a finegrained mix-precision quantization on a light-weight model, we aim at refining the traditional quantization to be more adjustable according to the efficiency limitation. Based on the previous [Quantization Aware Training](https://arxiv.org/abs/1712.05877), we introduce channel-wise trainable scale factors for both quantization range and precision. To eliminate the effect of the [outliners](https://arxiv.org/abs/1803.08607), we introduce a trainable scale factor ***alpha*** for each channel to make the quantization range tp adjust itself during the quantization process (similar ideas can be found [here](http://openaccess.thecvf.com/content_CVPRW_2019/papers/Low-Power%20Image%20Recognition%20Challenge/Goncharenko_Winning_Solution_on_LPIRC-ll_Competition_CVPRW_2019_paper.pdf)). In addition, to further explore the compression potential, we give a channel-wise scale factor ***beta*** to the quantization precision so that each channel in different layers can learn to adjust its precision. Since number of parameters and FLOPS are all related with the channel precision settings, we explicitly introduce the #Params and #Flops into the loss function, controlling the trade-off between accuracy and efficiency. The quantization parameter in the [QAT paper](https://arxiv.org/abs/1712.05877) can be rewritten as ([ ] means rounding operation):  
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.latex?\Large&space;S=\frac{\alpha*T_{range}}{2^{[\beta*n]}-1}" title="Method" width=150 />

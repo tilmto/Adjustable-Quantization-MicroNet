@@ -25,6 +25,7 @@ To enable a better initialization of EfficientNet-B0 before applying Adjustable 
 It's easy to control the trade-off between accuracy and efficiency in our method. For the model exactly satisfying the 75% Top 1 accuracy requirement, we averagely use 3.11 bits and 5.32 bits to represent weights and activations, which is a extremely compact model with metric 0.185639 @ 75.092% accuracy.
 
 Here's the distribution of the average precision of weights and activations in each layer of EfficientNet-B0. 
+![weight_bits](images/weight_bits_distrib.jpg)![act_bits](images/act_bits_distrib.jpg)
 
 ### File Utilization
 **slim** : self-customized Slim training package based on [Slim](https://github.com/tensorflow/models/tree/master/research/slim), which is used to generate pretrained float32 EfficientNet-B0 and quantized EfficientNet-B0 base on QAT

@@ -1,0 +1,216 @@
+#epsilon-resnet
+
+CUDA_VISIBLE_DEVICES=3,6,7,8 nohup python -u train_image_classifier_eps.py \
+   --train_dir=logs \
+   --train_image_size=224 \
+   --model_name=resnet_v2_101_epsilon \
+   --weight_decay 0.0002 \
+   --preprocessing_name inception \
+   --dataset_name=imagenet \
+   --dataset_dir=/data1/ILSVRC2017/tfrecord \
+   --dataset_split_name=train \
+   --label_smoothing=0.1 \
+   --moving_average_decay=0.9999 \
+   --batch_size=32 \
+   --learning_rate_decay_type fixed \
+   --learning_rate=3e-5 \
+   --learning_rate_decay_factor=0.98 \
+   --num_epochs_per_decay=2.5 \
+   --num_clones=4 \
+   --num_readers 32 \
+   --num_preprocessing_threads 32 \
+   --ignore_missing_vars True \
+   --allow_growth False \
+   --checkpoint_path ./logs/model.ckpt-28019 \
+   --eps 2.1 > train_log.txt 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=2 nohup python -u eval_image_classifier_eps.py \
+    --quantize=False \
+    --dataset_dir=/data1/ILSVRC2017/tfrecord/ \
+    --dataset_name=imagenet \
+    --dataset_split_name=validation \
+    --model_name=resnet_v2_101_epsilon \
+    --num_readers 8 \
+    --num_preprocessing_threads 8 \
+    --preprocessing_name inception \
+    --eval_image_size 299 \
+    --eps 2.1 \
+    --checkpoint_path /home/yf22/pretrained/resnet_v2_101/resnet_v2_101.ckpt >test_logs.txt 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=8 nohup python -u eval_image_classifier.py \
+    --quantize=False \
+    --dataset_dir=/data1/ILSVRC2017/tfrecord/ \
+    --dataset_name=imagenet \
+    --dataset_split_name=validation \
+    --model_name=resnet_v2_101 \
+    --num_readers 8 \
+    --num_preprocessing_threads 8 \0
+    --preprocessing_name inception \
+    --eval_image_size 299 \
+    --checkpoint_path /home/yf22/pretrained/resnet_v2_101/resnet_v2_101.ckpt >test_logs.txt 2>&1 &
+
+
+#gpu2
+CUDA_VISIBLE_DEVICES=0 nohup python -u train_image_classifier.py \
+   --train_dir=logs \
+   --train_image_size=192 \
+   --model_name=efficientnet_b0 \
+   --dataset_name=imagenet \
+   --dataset_dir=/data1/ILSVRC2017/tfrecord \
+   --dataset_split_name=train \
+   --preprocessing_name="efficientnet_b0" \
+   --label_smoothing=0.1 \
+   --moving_average_decay=0.9999 \
+   --batch_size=32 \
+   --learning_rate_decay_type fixed \
+   --learning_rate=1e-4 \
+   --learning_rate_decay_factor=0.98 \
+   --num_epochs_per_decay=2.5 \
+   --num_clones=1 \
+   --num_readers 32 \
+   --num_preprocessing_threads 32 \
+   --ignore_missing_vars True \
+   --quantize_delay 0 \
+   --allow_growth False \
+   --checkpoint_path=weights/model.ckpt-211904 > train_log.txt 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=7 nohup python -u train_image_classifier.py \
+   --train_dir=logs \
+   --train_image_size=192 \
+   --model_name=efficientnet_b5 \
+   --dataset_name=imagenet \
+   --dataset_dir=/data1/ILSVRC2017/tfrecord \
+   --dataset_split_name=train \
+   --preprocessing_name=efficientnet_b0 \
+   --label_smoothing=0.1 \
+   --moving_average_decay=0.9999 \
+   --batch_size=80 \
+   --learning_rate_decay_type fixed \
+   --learning_rate=1e-4 \
+   --learning_rate_decay_factor=0.98 \
+   --num_epochs_per_decay=2.5 \
+   --num_clones=1 \
+   --num_readers 8 \
+   --num_preprocessing_threads 8 \
+   --ignore_missing_vars True  > train_log.txt 2>&1 &
+
+CUDA_VISIBLE_DEVICES=8 nohup python -u train_image_classifier_div.py \
+   --train_dir=logs \
+   --train_image_size=192 \
+   --model_name=efficientnet_b0 \
+   --dataset_name=imagenet \
+   --dataset_dir=/home/cl114/common_datasets/imagenet_tfrecord \
+   --dataset_split_name=train \
+   --preprocessing_name="efficientnet_b0" \
+   --label_smoothing=0.1 \
+   --moving_average_decay=0.99 \
+   --batch_size=32 \
+   --learning_rate_decay_type fixed \
+   --learning_rate=1e-4 \
+   --learning_rate_decay_factor=0.98 \
+   --num_epochs_per_decay=2.5 \
+   --num_clones=1 \
+   --num_readers 32 \
+   --num_preprocessing_threads 32 \
+   --ignore_missing_vars True \
+   --quantize_delay 0 \
+   --swa_delay 5 \
+   --num_epoch_per_swa 1.0 \
+   --max_epoch 10 \
+   --allow_growth False \
+   --checkpoint_path=../slim2/logs/model.ckpt-304253 > train_log.txt 2>&1 &
+
+
+#test
+CUDA_VISIBLE_DEVICES=1 nohup python -u eval_image_classifier.py \
+    --quantize=False \
+    --eval_image_size=224 \
+    --dataset_dir=/data1/ILSVRC2017/tfrecord/ \
+    --dataset_name=imagenet \
+    --dataset_split_name=validation \
+    --model_name=efficientnet_b0 \
+    --num_readers 8 \
+    --num_preprocessing_threads 8 \
+    --checkpoint_path=weights/model.ckpt-166523 >test_logs.txt 2>&1 &
+
+CUDA_VISIBLE_DEVICES=8 nohup python -u eval_image_classifier.py \
+    --quantize=False \
+    --eval_image_size=456 \
+    --dataset_dir=/data1/ILSVRC2017/tfrecord/ \
+    --dataset_name=imagenet \
+    --dataset_split_name=validation \
+    --model_name=efficientnet_b5 \
+    --num_readers 8 \
+    --num_preprocessing_threads 8 \
+    --checkpoint_path=../off2slim/model_new.ckpt-0 >test_logs.txt 2>&1 &
+
+CUDA_VISIBLE_DEVICES=1 nohup python -u eval_image_classifier.py \
+    --quantize=False \
+    --eval_image_size=224 \
+    --dataset_dir="/data1/ILSVRC2017/tfrecord/" \
+    --dataset_name=imagenet \
+    --dataset_split_name=validation \
+    --model_name=efficientnet_b0 \
+    --preprocessing_name="efficientnet_b0" \
+    --num_readers 16 \
+    --num_preprocessing_threads 16 \
+    --checkpoint_path=/home/yf22/pretrained/efficient_b0/model_new.ckpt-0 >test_logs.txt 2>&1 &
+
+CUDA_VISIBLE_DEVICES=3 nohup python -u eval_image_classifier.py \
+    --quantize=False \
+    --eval_image_size=224 \
+    --dataset_dir=/data1/ILSVRC2017/tfrecord/ \
+    --dataset_name=imagenet \
+    --dataset_split_name=validation \
+    --model_name=resnet_v1_50 \
+    --labels_offset=1 \
+    --num_readers 16 \
+    --num_preprocessing_threads 16 \
+    --checkpoint_path=../deepkmeans5/model_kmeans >test_logs.txt 2>&1 &
+
+CUDA_VISIBLE_DEVICES=0 nohup python -u eval_image_classifier.py \
+    --quantize=True \
+    --eval_image_size=224 \
+    --dataset_dir=/home/cl114/common_datasets/imagenet_tfrecord \
+    --dataset_name=imagenet \
+    --dataset_split_name=validation \
+    --model_name=efficientnet_b0 \
+    --preprocessing_name=efficientnet_b0 \
+    --num_readers 8 \
+    --num_preprocessing_threads 8 \
+    --checkpoint_path=logs/model.ckpt-364290 >test_logs.txt 2>&1 &
+
+Utils:
+
+CUDA_VISIBLE_DEVICES=1 python export_inference_graph.py \
+  --alsologtostderr \
+  --model_name=efficientnet_b0 \
+  --image_size=224 \
+  --output_file=/home/yf22/pretrained/efficient_b0_autoaugment/efficientnet_b0.pb
+
+CUDA_VISIBLE_DEVICES=1 python export_inference_graph.py \
+  --quantize \
+  --alsologtostderr \
+  --model_name=efficientnet_b0 \
+  --image_size=224 \
+  --output_file=/home/yf22/pretrained/efficient_b0_autoaugment_quant/efficientnet_b0_quant.pb
+
+CUDA_VISIBLE_DEVICES=2 python freeze_graph.py \
+  --input_graph=/home/yf22/pretrained/efficient_b0_autoaugment_quant/efficientnet_b0_quant.pb \
+  --input_checkpoint=./logs/model.ckpt-384290 \
+  --input_binary=true --output_graph=/home/yf22/pretrained/efficient_b0_autoaugment_quant/frozen_efficientnet_b0_quant.pb \
+  --output_node_names=efficientnet_b0/Predictions/Reshape_1
+
+tflite_convert \
+  --output_file=logs/efficientnet_b0.tflite \
+  --graph_def_file=logs/frozen_efficientnet_b0.pb \
+  --input_format=TENSORFLOW_GRAPHDEF --output_format=TFLITE --inference_type=FLOAT \
+  --inference_input_type=QUANTIZED_UINT8 --input_shape="1,224,224,3" \
+  --input_arrays="input" \
+  --output_arrays="efficientnet_b0/Predictions/Reshape_1" \
+  --mean_value=128 \
+  --std_dev_value=127
+

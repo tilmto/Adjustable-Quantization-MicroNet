@@ -134,5 +134,29 @@ python train.py --weight_bits 8 \
 After finetung, we can achieve the best metric which satisfies the 75% accuracy requirement.
 
 ##### Generate prerequired files step by step 
-If you want to generate the checkpoint files in pickle format in **pretrained** directory and **initial_thresholds.json** by yourself, you can follow the instructions here.
+If you want to generate the checkpoint files in pickle format in **pretrained** directory and **initial_thresholds.json** by yourself, you can follow the instructions here. We first convert the official EfficientNet-B0 [checkpoint](https://github.com/tensorflow/tpu/tree/master/models/official/efficientnet) to our Slim-based version and then conduct the Quantization Aware Training to get the weight and threshold as initialization for Adjustable Quantization. To know more details about tensorflow-Slim usage, please refer to their official [github](https://github.com/tensorflow/models/tree/master/research/slim).
+
+First, to generate the self-implemented EfficientNet-B0 checkpoint, you need to run:
+```
+cd slim
+python train_image_classifier.py \
+   --train_dir=logs \
+   --train_image_size=192 \
+   --model_name=efficientnet_b0 \
+   --dataset_name=imagenet \
+   --dataset_split_name=train \
+   --preprocessing_name=efficientnet_b0 \
+   --label_smoothing=0.1 \
+   --moving_average_decay=0.9999 \
+   --batch_size=80 \
+   --learning_rate_decay_type fixed \
+   --learning_rate=1e-4 \
+   --learning_rate_decay_factor=0.98 \
+   --num_epochs_per_decay=2.5 \
+   --num_clones=1 \
+   --num_readers 8 \
+   --num_preprocessing_threads 8 \
+   --ignore_missing_vars True  \
+   --dataset_dir=path_to_imagenet_tfrecord 
+```
 

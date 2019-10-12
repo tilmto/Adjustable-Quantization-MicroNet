@@ -114,6 +114,11 @@ parser.add_argument('--swish_bits',
                     default=8,
                     help='num bits of the input to swish (0 means trainable, -1 means no quantization)',
 )
+parser.add_argument('--bias_bits',
+                    type=int,
+                    default=8,
+                    help='num bits to represent bias',
+)
 parser.add_argument('--swa_delay',
                     help='num epoches for swa delay',
                     type=float,
@@ -144,7 +149,7 @@ parser.add_argument('--lr_weight',
                     default=3e-6)
 parser.add_argument('--max_epoch',
                     type=float,
-                    default=3,
+                    default=2,
                     help='total epoch num for training',
 )
 parser.add_argument('--lr_fixed',
@@ -169,7 +174,7 @@ parser.add_argument('--bits_trainable',
                     default=False)
 parser.add_argument('--metric',
                     type=float,
-                    default=0.17,
+                    default=0.18,
                     help='target metric',
 )
 parser.add_argument('--aug',
@@ -190,8 +195,8 @@ parser.add_argument('--finetune',
                     default=False)
 args = parser.parse_args()
 
-weight_path = args.weight_path  # Initial weights after Quantization Aware Training 
-teacher_path = args.teacher_path  # Float32 weights as the teacher model in Knowledge Distillation
+weight_path = args.weight_path
+teacher_path = args.teacher_path
 
 WEIGHTS = hp.load_pickle(weight_path)
 TEA_WEIGHTS = hp.load_pickle(teacher_path)
@@ -230,7 +235,6 @@ class MyEncoder(json.JSONEncoder):
         else:
             return super(MyEncoder, self).default(obj)
 
-# Eval initial quantization range, if no specification, the initial_thresholds.json will serve as the initial range
 if args.ckpt_path_thres:
     with open('initial_thresholds.json', 'r') as f:
         THRESHOLDS = json.load(f)
@@ -238,7 +242,7 @@ if args.ckpt_path_thres:
     print("Eval Initial Thresholds from ", args.ckpt_path_thres)
 
     thr_input_node,_ = gen_data('train',args.dataset,args.batch_size) 
-    _, quant_model = ct.create_adjustable_model(thr_input_node, WEIGHTS, TEA_WEIGHTS, THRESHOLDS, r_alpha, r_beta, tea_model=args.tea_model, weight_bits=args.weight_bits, act_bits=args.act_bits, swish_bits=args.swish_bits, weight_const=args.weight_const, bits_trainable=args.bits_trainable, mix_prec=args.mix_prec)
+    _, quant_model = ct.create_adjustable_model(thr_input_node, WEIGHTS, TEA_WEIGHTS, THRESHOLDS, r_alpha, r_beta, tea_model=args.tea_model, weight_bits=args.weight_bits, act_bits=args.act_bits, swish_bits=args.swish_bits, bias_bits=args.bias_bits, weight_const=args.weight_const, bits_trainable=args.bits_trainable, mix_prec=args.mix_prec)
 
     with tf.Session(graph=quant_model.graph) as sess:
         saver_e = tf.train.Saver()
@@ -286,18 +290,16 @@ else:
     with open('initial_thresholds.json', 'r') as f:
         THRESHOLDS = json.load(f)
 
-# Prepare the training/validation data
+
 print("Prepare Data...")
 is_training = tf.placeholder(tf.bool)
 val_images,val_labels = gen_data('validation', args.dataset, args.batch_size, args.img_size)
 train_images,train_labels = gen_data('train', args.dataset, args.batch_size, args.img_size, args.aug)
-
-# Swith between training data and validation data during training to monitor the accuracy on validation set
 input_node = tf.cond(is_training,lambda:train_images,lambda:val_images)
 
-# Create Model with Adjustable Quantization nodes
+
 print("Create Adjustable Model...")
-float_model, quant_model = ct.create_adjustable_model(input_node, WEIGHTS, TEA_WEIGHTS, THRESHOLDS, r_alpha, r_beta, tea_model=args.tea_model, weight_bits=args.weight_bits, act_bits=args.act_bits, swish_bits=args.swish_bits, weight_const=args.weight_const, bits_trainable=args.bits_trainable, mix_prec=args.mix_prec)
+float_model, quant_model = ct.create_adjustable_model(input_node, WEIGHTS, TEA_WEIGHTS, THRESHOLDS, r_alpha, r_beta, tea_model=args.tea_model, weight_bits=args.weight_bits, act_bits=args.act_bits, swish_bits=args.swish_bits, bias_bits=args.bias_bits, weight_const=args.weight_const, bits_trainable=args.bits_trainable, mix_prec=args.mix_prec)
 
 
 if args.export_inference_graph:
@@ -330,8 +332,6 @@ train_configuration_data['iter_train'] = args.iter_train
 train_configuration_data['iter_train_freq'] = args.iter_train_freq
 train_configuration_data['finetune'] = args.finetune
 
-
-# Create Trainer with iterative training strategy
 print("Build Trainer...")
 my_trainer = Trainer(input_node.graph, train_labels, val_labels, float_model.output_node,
                      quant_model,is_training=is_training, **train_configuration_data)
@@ -358,17 +358,16 @@ with tf.Session(graph=input_node.graph,config=config) as sess:
         if not args.validation:
             
             if args.tfs:
-                # Check accuracy of the original model
+                # check accuracy of the original model
                 print("Check accuracy of the original model ...")
                 original_top1 = my_trainer.validate(sess, False)
                 print("Original top 1:", original_top1)
 
-                # Check accuracy of the non-trained quantized model
+                # check accuracy of the non-trained quantized model
                 print("Check accuracy of the non-trained quantized model ...")
                 initial_top1, initial_metric, initial_params, initial_flops = my_trainer.validate(sess)
                 print("Initial top 1:", initial_top1, 'Initial metric:', initial_metric, 'Initial params:', initial_params, 'Initial flops:'. initial_flops)
 
-            # Start training process
             print("Training thresholds of the quantized model ...")
             my_trainer.train(sess)
         

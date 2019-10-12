@@ -91,12 +91,12 @@ parser.add_argument('-r','--range',
 )
 parser.add_argument('--weight_path',
                     type=str,
-                    default='../pretrained/efficient_b0_autoaugment_quant/frozen_efficientnet_b0_quant_weights.pickle',
+                    default='/home/yf22/pretrained/efficient_b0_autoaugment_quant/frozen_efficientnet_b0_quant_weights.pickle',
                     help='float weight path',
 )
 parser.add_argument('--teacher_path',
                     type=str,
-                    default='../pretrained/efficient_b0_autoaugment/frozen_efficientnet_b0_weights.pickle',
+                    default='/home/yf22/pretrained/efficient_b0_autoaugment/frozen_efficientnet_b0_weights.pickle',
                     help='weight path of teacher network',
 )
 parser.add_argument('--weight_bits',
@@ -113,6 +113,11 @@ parser.add_argument('--swish_bits',
                     type=int,
                     default=8,
                     help='num bits of the input to swish',
+)
+parser.add_argument('--bias_bits',
+                    type=int,
+                    default=8,
+                    help='num bits to represent bias',
 )
 parser.add_argument('--swa_delay',
                     help='num epoches for swa delay',
@@ -186,8 +191,16 @@ parser.add_argument('--finetune',
                     default=False)
 args = parser.parse_args()
 
-weight_path = args.weight_path   # Initial weights after Quantization Aware Training 
-teacher_path = args.teacher_path   # Float32 weights as the teacher model in Knowledge Distillation
+if args.local:
+    weight_path = "/home/tilmto/Ericpy/tensorflow/micronet/pretrained/efficient_b0/frozen_efficientnet_b0_weights.pickle"
+    teacher_path = "/home/tilmto/Ericpy/tensorflow/micronet/pretrained/efficient_b0/frozen_efficientnet_b0_weights.pickle"
+    output_dir_name = "/home/tilmto/Ericpy/tensorflow/micronet/fat/fat_output"
+
+else:
+    weight_path = args.weight_path
+    teacher_path = args.teacher_path
+    output_dir_name = "/home/yf22/fat/fat_output"
+    
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):  # pylint: disable=E0202
@@ -223,19 +236,17 @@ else:
     r_alpha=[0.5,1.3]
     r_beta=[-0.2,0.4]
 
-# Get initial quantization range
+
 print("Load Initial Thresholds...")
 with open('initial_thresholds.json', 'r') as f:
     THRESHOLDS = json.load(f)
 
-# Prepare the validation data
 print("Prepare Data...")
 val_images,val_labels = gen_data('validation',args.dataset,args.batch_size,args.img_size)
 input_node = val_images
 
-# Create Model with Adjustable Quantization nodes
 print("Create Adjustable Model...")
-float_model, quant_model = ct.create_adjustable_model(input_node, WEIGHTS, TEA_WEIGHTS, THRESHOLDS, r_alpha, r_beta, tea_model=args.tea_model, weight_bits=args.weight_bits, act_bits=args.act_bits, swish_bits=args.swish_bits, weight_const=args.weight_const, bits_trainable=args.bits_trainable, mix_prec=args.mix_prec)
+float_model, quant_model = ct.create_adjustable_model(input_node, WEIGHTS, TEA_WEIGHTS, THRESHOLDS, r_alpha, r_beta, tea_model=args.tea_model, weight_bits=args.weight_bits, act_bits=args.act_bits, swish_bits=args.swish_bits, bias_bits=args.bias_bits, weight_const=args.weight_const, bits_trainable=args.bits_trainable, mix_prec=args.mix_prec)
 
 if args.export_inference_graph:
 	print('Exporting inference graph.')
@@ -272,7 +283,6 @@ with tf.Session(graph=input_node.graph,config=config) as sess:
             original_top1 = my_trainer.validate(sess, False)
             print("Original top 1:", original_top1)
 
-        # Run evaluation
         print("Check accuracy of the quantized model ...")
         top1, metric, params, flops = my_trainer.validate(sess)
         print("top 1 accuracy:", top1)
@@ -280,7 +290,6 @@ with tf.Session(graph=input_node.graph,config=config) as sess:
         print("params:", params)
         print("flops:", flops)
 
-        # Save the precision of each channel in each layer of EfficientNet-B0 to a json file
         with open('quant_info.json','w') as f:
             json.dump(sess.run(quant_model.quant_info), f, cls=MyEncoder)
         print("Save quant info.")

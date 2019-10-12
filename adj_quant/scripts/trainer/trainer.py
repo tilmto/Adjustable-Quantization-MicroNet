@@ -46,6 +46,7 @@ class Trainer:
         self.num_swish_list = quant_model.num_swish_list
         self.swish_bits = quant_model.swish_bits
         self.swish_bits_list = quant_model.swish_bits_list
+        self.bias_bits = quant_model.bias_bits
 
         self.total_train_img = 1281167
         self.total_val_img = 50000
@@ -66,17 +67,14 @@ class Trainer:
 
 
     def _compute_metric(self):
-        '''
-        model_info.json contains the params and flops of each layer in EfficientNet-B0
-        quant_info is a dict containing the corresponding precision of each layer 
-        '''
-
         model_info = json.load(open('model_info.json','r'))
 
         params = 0
         flops = 0
 
         for key in model_info.keys():
+            if key == 'total_bias':
+                continue
             if key == 'expanded_conv':
                 new_key = 'expanded_conv_0'
             elif key == 'Logits':
@@ -116,13 +114,18 @@ class Trainer:
                 flops_project = model_info[key][1]['project'] * self.soft_reduce_max_op(self.quant_info[new_key]['project']['weight'],self.quant_info[new_key]['se_2']['act'])
                 
                 flops += (flops_expand + flops_dws + flops_se_1 + flops_se_2 + flops_project) / 32
-        
-        self.params = params
+
+        if self.bias_bits:
+            params_bias = model_info['total_bias']*self.bias_bits/32
+        else:
+            params_bias = model_info['total_bias']
+
+        self.params = params + params_bias
 
         if self.swish_bits == -1:
-            flops_swish = 0.
+            flops_swish = 3.*self.num_swish
         elif self.swish_bits:
-            flops_swish = 3*self.num_swish*self.swish_bits/32
+            flops_swish = 3.*self.num_swish*self.swish_bits/32
         else:
             flops_swish = 0.
             for i in range(len(self.num_swish_list)):
@@ -136,17 +139,12 @@ class Trainer:
 
 
     def soft_reduce_max_op(self,a,b):
-        '''
-        Since the max operatin is not differentiable, we rewrite its backward function here for reduing Flops
-        '''
-        
         if isinstance(b,int):
             return tf.to_float(b)
             
         new_a = tf.tile(a, b.shape)
         new_b = tf.tile(b, a.shape)
         bp = (1-self.gamma)*new_a + self.gamma*new_b
-
         if self.bits_trainable:
             return tf.reduce_mean(bp + tf.stop_gradient(tf.reduce_max([new_a, new_b],axis=0) - bp))
         else:
@@ -154,10 +152,6 @@ class Trainer:
 
 
     def _build_train_procedure(self, original_output: tf.Tensor, quantized_output: tf.Tensor, initial_lr):
-        '''
-        The loss function contains 3 parts, including the classification loss, knowledge distillation loss and metric loss
-        sign is used to control the metric to keep stable around the target metric 
-        '''
         self.loss_cls = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=quantized_output,labels=self.train_labels))
         self.loss_kd= 0.01*tf.reduce_mean(tf.reduce_sum(tf.sqrt((quantized_output - original_output) ** 2 + 1e-5), axis=-1))
         self.loss_metric = self._compute_metric()
@@ -166,7 +160,6 @@ class Trainer:
 
         self.lr = tf.placeholder_with_default(initial_lr, shape=[], name="learning_rate")
 
-        # Enable different learning rate for weights/quantization range and precision
         if self.bits_trainable:
             var_bits = []
             var_other = []
@@ -203,13 +196,17 @@ class Trainer:
         global_step_train = 0
         decay_step = 0
 
-        # If ckpt_path is specified, we resume the training process
         if self.ckpt_path:
-            saver.restore(sess,self.ckpt_path)
+            # variables_to_restore = []
+            # for var in tf.trainable_variables():
+            #     if 'bias' not in var.name:
+            #         variables_to_restore.append(var)
+            # saver2 = tf.train.Saver(variables_to_restore)
+            # saver2.restore(sess, self.ckpt_path)
+            saver.restore(sess, self.ckpt_path)
             print('Restore model from ckpt file:',self.ckpt_path)
             self.ckpt_path = None
 
-        # If SWA is enabled, we build a dict to record the weights in different epochs
         if self.swa_delay is not None:
             var_names = {}
 
@@ -226,13 +223,11 @@ class Trainer:
             print("Epoch: {}".format(cur_epoch + 1))
             print('=' * 40)
 
-            # Every 1/10 epoch is a mini-epoch
             for k in range(10):
                 print("******** {} / 10 of the Epoch ********".format(k+1))
 
                 train_op = None
 
-                # Switch between iterative train mode and finetune mode
                 if not self.bits_trainable:
                     train_op = self.train_op
                 elif self.finetune:
@@ -263,7 +258,6 @@ class Trainer:
 
                 print("Top 1 acc: {}, Metric: {}, Params: {}, Flops: {}".format(top_1_acc, metric, params, flops))
 
-                # If SWA is enabled, record the weight every swa_freq epochs
                 if self.swa_delay is not None:
                     if self.swa_delay <= cur_epoch + k*0.1 and k and not k % int(10*self.swa_freq):
                         print("Saving current SWA weights...")
@@ -277,7 +271,6 @@ class Trainer:
             if exit_flag:
                 break
 
-        # If SWA is enabled, conduct SWA after finishing training process
         if self.swa_delay is not None:
             print("Compute and save final SWA model...")
             weight_avg = {}

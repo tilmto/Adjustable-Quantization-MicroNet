@@ -18,10 +18,9 @@ def create_float_model(input_node, weights, mix_prec=False, output_node_name="ou
         return EffNetB0ModelFloat(input_node, weights, mix_prec, output_node_name=output_node_name)
 
 
-def create_adjustable_model(input_node, weights, tea_weights, thresholds, r_alpha=[0.5,1.3], r_beta=[-0.2,0.4], tea_model='eff_b0', weight_bits=8, act_bits=8, swish_bits=8, weight_const=False, bits_trainable=True, mix_prec=False):
+def create_adjustable_model(input_node, weights, tea_weights, thresholds, r_alpha=[0.5,1.3], r_beta=[-0.2,0.4], tea_model='eff_b0', weight_bits=8, act_bits=8, swish_bits=8, bias_bits=8, weight_const=False, bits_trainable=True, mix_prec=False):
 
     with input_node.graph.as_default():
-        # Rewrite the backward function of tf.round and tf.clip_by_value
         def _clip_grad_op(op, grad):
             x = op.inputs[0]
             x_min = op.inputs[1]
@@ -35,7 +34,7 @@ def create_adjustable_model(input_node, weights, tea_weights, thresholds, r_alph
         tf.RegisterGradient(grad_name)(_clip_grad_op)
 
         with input_node.graph.gradient_override_map({"Round": "Identity", "ClipByValue": grad_name}):
-            effnetb0_model_quantized = EffNetB0ModelAdjustable(input_node, weights, thresholds, r_alpha, r_beta, weight_bits, act_bits, swish_bits, weight_const, bits_trainable, mix_prec)
+            effnetb0_model_quantized = EffNetB0ModelAdjustable(input_node, weights, thresholds, r_alpha, r_beta, weight_bits, act_bits, swish_bits, bias_bits, weight_const, bits_trainable, mix_prec)
 
         with tf.name_scope("float_model"):
             if tea_model == 'eff_b0':

@@ -72,7 +72,6 @@ def eval_thresholds(sess, input_node, reference_nodes, batch_size) -> Dict[str, 
     for w_node in weights_nodes:
         res = sess.run(reference_nodes[w_node])
 
-        # Eval the quantization range of each channel(filter) of the weights
         if 'dws' not in w_node:
             thresholds[w_node] = {"min": np.min(np.min(np.min(res,axis=0),axis=0),axis=0),
                                   "max": np.max(np.max(np.max(res,axis=0),axis=0),axis=0)}
@@ -81,7 +80,6 @@ def eval_thresholds(sess, input_node, reference_nodes, batch_size) -> Dict[str, 
                                   "max": np.max(np.max(np.max(res,axis=0),axis=0),axis=1)}
 
     for o_node in output_nodes:
-        # Eval the quantization range of each channel of the activations
         res_min, res_max = _eval_threshold_for_one_node(reference_nodes[o_node],
                                                         input_node,
                                                         sess,batch_size)

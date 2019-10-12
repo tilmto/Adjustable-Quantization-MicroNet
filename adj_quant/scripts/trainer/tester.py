@@ -26,6 +26,7 @@ class Tester:
         self.num_swish_list = quant_model.num_swish_list
         self.swish_bits = quant_model.swish_bits
         self.swish_bits_list = quant_model.swish_bits_list
+        self.bias_bits = quant_model.bias_bits
 
         self.total_train_img = 1281167
         self.total_val_img = 50000
@@ -42,17 +43,14 @@ class Tester:
 
 
     def _compute_metric(self):
-        '''
-        model_info.json contains the params and flops of each layer in EfficientNet-B0
-        quant_info is a dict containing the corresponding precision of each layer 
-        '''
-
         model_info = json.load(open('model_info.json','r'))
 
         params = 0
         flops = 0
 
         for key in model_info.keys():
+            if key == 'total_bias':
+                continue
             if key == 'expanded_conv':
                 new_key = 'expanded_conv_0'
             elif key == 'Logits':
@@ -93,12 +91,17 @@ class Tester:
                 
                 flops += (flops_expand + flops_dws + flops_se_1 + flops_se_2 + flops_project) / 32
 
-        self.params = params
+        if self.bias_bits:
+            params_bias = model_info['total_bias']*self.bias_bits/32
+        else:
+            params_bias = model_info['total_bias']
+
+        self.params = params + params_bias
 
         if self.swish_bits == -1:
-            flops_swish = 0.
+            flops_swish = 3.*self.num_swish
         elif self.swish_bits:
-            flops_swish = 3*self.num_swish*self.swish_bits/32
+            flops_swish = 3.*self.num_swish*self.swish_bits/32
         else:
             flops_swish = 0.
             for i in range(len(self.num_swish_list)):
@@ -112,10 +115,6 @@ class Tester:
 
 
     def soft_reduce_max_op(self,a,b):
-        '''
-        Since the max operatin is not differentiable, we rewrite its backward function here for reduing Flops
-        '''
-
         if isinstance(b,int):
             return tf.to_float(b)
             
@@ -130,7 +129,6 @@ class Tester:
     def validate(self, sess, use_quantized=True):
         top_1_acc_arr = []
 
-        # Specify the checkpoint file to be evaluated
         if self.ckpt_path:
             saver = tf.train.Saver()
             saver.restore(sess,self.ckpt_path)

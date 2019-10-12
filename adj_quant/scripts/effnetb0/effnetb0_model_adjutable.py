@@ -41,7 +41,7 @@ def _fixed_quant_signed(input_node, min_th, max_th, bits=8, name="fixed_signed_d
 
 class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
 
-    def __init__(self, input_node, weights, thresholds, r_alpha=[0.5,1.3], r_beta=[-0.2,0.4], weight_bits=8, act_bits=8, swish_bits=8, weight_const=False, bits_trainable=True, mix_prec=False, output_node_name="output_node"):
+    def __init__(self, input_node, weights, thresholds, r_alpha=[0.5,1.3], r_beta=[-0.2,0.4], weight_bits=8, act_bits=8, swish_bits=8, bias_bits=8, weight_const=False, bits_trainable=True, mix_prec=False, output_node_name="output_node"):
         self._adjusted_thresholds = dict()
         self._ths_vars = list()
         self.r_alpha = r_alpha
@@ -51,7 +51,9 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
         self.weight_const = weight_const
 
         self.bits_trainable = bits_trainable
+
         self.swish_bits = swish_bits
+        self.bias_bits = bias_bits
 
         self.swish_bits_list = []
 
@@ -107,7 +109,6 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
                 min_th_node = tf.constant(min_th, tf.float32, name="min_th")
                 th_width_node = tf.constant(th_width, tf.float32, name="th_width")
 
-                # Trainable channel-wise scale factor for adjustable quantization range
                 alpha = tf.Variable(tf.constant(1.0, shape=[input_node.shape[3],]), dtype=tf.float32, name="th_width_scale")
                 beta = tf.Variable(tf.constant(0.0, shape=[input_node.shape[3],]), dtype=tf.float32, name="th_shift_percent")
 
@@ -124,7 +125,6 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
             # scale
             with tf.name_scope("scale"):
                 if self.bits_trainable:
-                    # Trainable channel-wise scale factor for adjustable precision
                     bits_scale = tf.Variable(tf.constant(1.0, shape=[input_node.shape[3],]), dtype=tf.float32, name='bits_scale')
                     bits = bits_scale * tf.to_float(bits)
                     bits = _rounding_fn(bits, name='bits_rounding')
@@ -163,7 +163,6 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
                 min_th_node = tf.constant(min_th, tf.float32, name="min_th")
                 th_width_node = tf.constant(th_width, tf.float32, name="th_width")
 
-                # Trainable channel-wise scale factor for adjustable quantization range
                 alpha = tf.Variable(tf.constant(1.0, shape=[input_node.shape[2],]), dtype=tf.float32, name="th_width_scale")
                 beta = tf.Variable(tf.constant(0.0, shape=[input_node.shape[2],]), dtype=tf.float32, name="th_shift_percent")
 
@@ -177,9 +176,9 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
 
                 adjusted_max_th = tf.add(adjusted_min_th, adjusted_th_width, name="adjusted_max_th")
 
+            # scale
             with tf.name_scope("scale"):
                 if self.bits_trainable:
-                    # Trainable channel-wise scale factor for adjustable precision
                     bits_scale = tf.Variable(tf.constant(1.0, shape=[input_node.shape[2],]), dtype=tf.float32, name='bits_scale')
                     bits = bits_scale * tf.to_float(bits)
                     bits = _rounding_fn(bits, name='bits_rounding')
@@ -210,45 +209,103 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
         return descrete_input_data, bits
 
 
-    def _adjustable_quant_unsigned(self, input_node, max_th, out_name, bits=8, name="adjust_unsigned_data"):
+    def _adjustable_quant_signed_static(self, input_node, min_th, max_th, out_name, bits=8, name="adjust_signed_data"):
         self.num_sf += input_node.shape[3].value
-        th_width = max_th
+        th_width = max_th - min_th
 
         with tf.name_scope(name):
             with tf.name_scope("thresholds"):
-                min_th_node = tf.constant(0, shape=[input_node.shape[3],], dtype=tf.float32, name="min_th")
+                min_th_node = tf.constant(min_th, tf.float32, name="min_th")
                 th_width_node = tf.constant(th_width, tf.float32, name="th_width")
 
                 alpha = tf.Variable(tf.constant(1.0, shape=[input_node.shape[3],]), dtype=tf.float32, name="th_width_scale")
+                beta = tf.Variable(tf.constant(0.0, shape=[input_node.shape[3],]), dtype=tf.float32, name="th_shift_percent")
 
                 alpha_constrained = tf.clip_by_value(alpha, self.r_alpha[0], self.r_alpha[1], name="th_width_scale_constrain")
+                beta_constrained = tf.clip_by_value(beta, self.r_beta[0], self.r_beta[1], name="th_shift_percent_constrain")
 
                 adjusted_th_width = tf.multiply(th_width_node, alpha_constrained, name="adjusted_width")
+                shift_node = tf.multiply(th_width_node, beta_constrained, name="min_th_shift")
 
+                adjusted_min_th = tf.add(min_th_node, shift_node, name="adjusted_min_th")
+
+                adjusted_max_th = tf.add(adjusted_min_th, adjusted_th_width, name="adjusted_max_th")
+
+            # scale
             with tf.name_scope("scale"):
-                if self.bits_trainable:
-                    bits_scale = tf.Variable(tf.constant(1.0, shape=[input_node.shape[3],]), dtype=tf.float32, name='bits_scale')
-                    bits = bits_scale * tf.to_float(bits)
-                    bits = _rounding_fn(bits, name='bits_rounding')
-                    bits = tf.clip_by_value(bits, 2, 8, name="bits_clip")
-
                 q_range = 2. ** bits - 1.
 
                 eps = tf.constant(10. ** -7, shape=[input_node.shape[3],], dtype=tf.float32, name='eps')
                 scale_node = tf.div(q_range, adjusted_th_width + eps, "new_input_scale")
                 scale_node = tf.reshape(scale_node,[1,1,1,-1])
 
+            with tf.name_scope("quantized_bias"):
+                quant_bias = tf.multiply(adjusted_min_th, scale_node, name="scaling")
+                quant_bias = _rounding_fn(quant_bias, name="rounding")
+
             with tf.name_scope("discrete_input_data"):
                 net = tf.multiply(input_node, scale_node, name="scaling")
                 net = _rounding_fn(net, name='rounding')
-                net = tf.clip_by_value(net, clip_value_min=0., clip_value_max=tf.reshape(2.**bits-1., [1,1,1,-1]))
+                net = tf.clip_by_value(net - quant_bias, clip_value_min=0., clip_value_max=tf.reshape(2.**bits-1., [1,1,1,-1])) + quant_bias
+
                 descrete_input_data = tf.div(net, scale_node, name="discrete_data")
 
-        self._add_thresholds(out_name, min_th_node, adjusted_th_width)
+        self._add_thresholds(out_name, adjusted_min_th, adjusted_max_th)
         self._add_th_var(alpha)
+        self._add_th_var(beta)
 
         return descrete_input_data, bits
 
+
+    def _adjustable_quant_bias(self, input_node, out_name='bias', bits=8, name="adjust_bias"):
+        self.num_sf += input_node.shape[0].value
+
+        max_th = tf.reduce_max(input_node)
+        min_th = tf.reduce_min(input_node)
+        th_width = max_th - min_th
+
+        with tf.name_scope(name):
+            with tf.name_scope("thresholds"):
+                min_th_node = tf.identity(min_th, name="min_th")
+                th_width_node = tf.identity(th_width, name="th_width")
+
+                alpha = tf.Variable(tf.constant(1.0), dtype=tf.float32, name="th_width_scale")
+                beta = tf.Variable(tf.constant(0.0), dtype=tf.float32, name="th_shift_percent")
+
+                alpha_constrained = tf.clip_by_value(alpha, self.r_alpha[0], self.r_alpha[1], name="th_width_scale_constrain")
+                beta_constrained = tf.clip_by_value(beta, self.r_beta[0], self.r_beta[1], name="th_shift_percent_constrain")
+
+                adjusted_th_width = tf.multiply(th_width_node, alpha_constrained, name="adjusted_width")
+                shift_node = tf.multiply(th_width_node, beta_constrained, name="min_th_shift")
+
+                adjusted_min_th = tf.add(min_th_node, shift_node, name="adjusted_min_th")
+
+                adjusted_max_th = tf.add(adjusted_min_th, adjusted_th_width, name="adjusted_max_th")
+
+            # scale
+            with tf.name_scope("scale"):
+                q_range = 2. ** bits - 1.
+
+                eps = tf.constant(10. ** -7, dtype=tf.float32, name='eps')
+                scale_node = tf.div(q_range, adjusted_th_width + eps, "new_input_scale")
+
+            with tf.name_scope("quantized_bias"):
+                quant_bias = tf.multiply(adjusted_min_th, scale_node, name="scaling")
+                quant_bias = _rounding_fn(quant_bias, name="rounding")
+
+            with tf.name_scope("discrete_input_data"):
+                net = tf.multiply(input_node, scale_node, name="scaling")
+                net = _rounding_fn(net, name='rounding')
+                net = tf.clip_by_value(net - quant_bias, clip_value_min=0., clip_value_max=2.**bits-1.) + quant_bias
+
+                descrete_input_data = tf.div(net, scale_node, name="discrete_data")
+
+        self._add_thresholds(out_name, adjusted_min_th, adjusted_max_th)
+        self._add_th_var(alpha)
+        self._add_th_var(beta)
+
+        return descrete_input_data
+    
 
     def _create_weights_node(self, weights_data, quant=True, dws=False):
         weights_name_scope = _get_name_scope() + "/weights"
@@ -262,7 +319,6 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
             
         self._add_reference_node(weights_node)
 
-        # Create Fake Adjustable Quantization Nodes
         if quant:
             if not dws:
                 quantized_weights, bits = self._adjustable_quant_signed(weights_node,
@@ -297,11 +353,11 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
 
         if output_type == "fixed":
             pass
+            #net = _fixed_quant_signed(net, -1, 1, bits=self.bits, name="fixed_quantized_input")
         else:
             output_name_scope = _get_name_scope() + "/" + subscope
             i_min, i_max = self._get_thresholds(output_name_scope)
 
-            # Create Fake Adjustable Quantization Nodes
             net, bits = self._adjustable_quant_signed(net, i_min, i_max, output_name_scope, bits=self.act_bits, name="quantized_input")
 
             key = output_name_scope.split('/')[0]
@@ -323,55 +379,7 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
         self._add_reference_node(net)
 
         return net
-
-
-    def _adjustable_quant_signed_static(self, input_node, min_th, max_th, out_name, bits=8, name="adjust_signed_data"):
-        self.num_sf += input_node.shape[3].value
-        th_width = max_th - min_th
-
-        with tf.name_scope(name):
-            with tf.name_scope("thresholds"):
-                min_th_node = tf.constant(min_th, tf.float32, name="min_th")
-                th_width_node = tf.constant(th_width, tf.float32, name="th_width")
-
-                alpha = tf.Variable(tf.constant(1.0, shape=[input_node.shape[3],]), dtype=tf.float32, name="th_width_scale")
-                beta = tf.Variable(tf.constant(0.0, shape=[input_node.shape[3],]), dtype=tf.float32, name="th_shift_percent")
-
-                alpha_constrained = tf.clip_by_value(alpha, self.r_alpha[0], self.r_alpha[1], name="th_width_scale_constrain")
-                beta_constrained = tf.clip_by_value(beta, self.r_beta[0], self.r_beta[1], name="th_shift_percent_constrain")
-
-                adjusted_th_width = tf.multiply(th_width_node, alpha_constrained, name="adjusted_width")
-                shift_node = tf.multiply(th_width_node, beta_constrained, name="min_th_shift")
-
-                adjusted_min_th = tf.add(min_th_node, shift_node, name="adjusted_min_th")
-
-                adjusted_max_th = tf.add(adjusted_min_th, adjusted_th_width, name="adjusted_max_th")
-
-            with tf.name_scope("scale"):
-                # Fixed Precision
-                q_range = 2. ** bits - 1.
-
-                eps = tf.constant(10. ** -7, shape=[input_node.shape[3],], dtype=tf.float32, name='eps')
-                scale_node = tf.div(q_range, adjusted_th_width + eps, "new_input_scale")
-                scale_node = tf.reshape(scale_node,[1,1,1,-1])
-
-            with tf.name_scope("quantized_bias"):
-                quant_bias = tf.multiply(adjusted_min_th, scale_node, name="scaling")
-                quant_bias = _rounding_fn(quant_bias, name="rounding")
-
-            with tf.name_scope("discrete_input_data"):
-                net = tf.multiply(input_node, scale_node, name="scaling")
-                net = _rounding_fn(net, name='rounding')
-                net = tf.clip_by_value(net - quant_bias, clip_value_min=0., clip_value_max=tf.reshape(2.**bits-1., [1,1,1,-1])) + quant_bias
-
-                descrete_input_data = tf.div(net, scale_node, name="discrete_data")
-
-        self._add_thresholds(out_name, adjusted_min_th, adjusted_max_th)
-        self._add_th_var(alpha)
-        self._add_th_var(beta)
-
-        return descrete_input_data, bits
-
+        
 
     def _swish_input(self, net):
         if self.swish_bits == -1:
@@ -381,7 +389,6 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
         i_min, i_max = self._get_thresholds(output_name_scope)
 
         if self.swish_bits:
-            # Use fixed precision for the input activations of swish
             net, bits = self._adjustable_quant_signed_static(net, i_min, i_max, output_name_scope, bits=self.swish_bits, name="swish_input")
         else:
             net, bits = self._adjustable_quant_signed(net, i_min, i_max, output_name_scope, bits=self.act_bits, name="swish_input")
@@ -392,4 +399,50 @@ class EffNetB0ModelAdjustable(EffNetB0ModelFakeQuant):
         self._add_reference_node(net)
 
         return net
+
+
+    def _build_dws(self, input_node, weights_and_bias, strides, quant=True):
+        weights_node = self._create_weights_node(weights_and_bias["weights"],quant,dws=True)
+        
+        op_output = tf.nn.depthwise_conv2d(input_node, 
+                                           weights_node, 
+                                           (1, strides, strides, 1), 
+                                           padding="SAME")
+
+        if "bias" in weights_and_bias:
+            if self.weight_const:
+                bias_node = tf.constant(weights_and_bias["bias"], tf.float32, name="bias")
+            else:
+                bias_node = tf.Variable(weights_and_bias["bias"], tf.float32, name="bias")     
+
+            if self.bias_bits != 0:
+                output_name_scope = _get_name_scope()
+                bias_node = self._adjustable_quant_bias(bias_node, output_name_scope, self.bias_bits)
+
+            op_output = tf.nn.bias_add(op_output, bias_node)
+        
+        return op_output
+    
+
+    def _build_conv(self, input_node, weights_and_bias, strides, quant=True):
+        weights_node = self._create_weights_node(weights_and_bias["weights"],quant)
+        
+        op_output = tf.nn.conv2d(input_node, 
+                                 weights_node, 
+                                 (1, strides, strides, 1), 
+                                 padding="SAME")
+        
+        if "bias" in weights_and_bias:
+            if self.weight_const:
+                bias_node = tf.constant(weights_and_bias["bias"], tf.float32, name="bias")
+            else:
+                bias_node = tf.Variable(weights_and_bias["bias"], tf.float32, name="bias")
+            
+            if self.bias_bits != 0:
+                output_name_scope = _get_name_scope()
+                bias_node = self._adjustable_quant_bias(bias_node, output_name_scope, self.bias_bits)
+
+            op_output = tf.nn.bias_add(op_output, bias_node)
+        
+        return op_output
 

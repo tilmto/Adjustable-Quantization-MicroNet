@@ -80,6 +80,7 @@ Tensorflow-gpu 1.13.1, CUDA 10.0, python 3.6.0, tqdm 4.32.2
 #### Evaluation
 To check the accuracy and metric of the provided checkpoint, use the following commands:
 ```
+cd adj_quant
 python eval.py --weight_bits 8 \
                --act_bits 8 \
                --swish_bits 8 \
@@ -99,6 +100,7 @@ We provided the pretrained float32 EfficientNet-B0 checkpoint and the quantized 
 ##### Fast Train Mode
 All the prerequired files are all ready, you can start training with Adjustable Quantization directly:
 ```
+cd adj_quant
 python train.py --weight_bits 8 \
                 --act_bits 8 \
                 --swish_bits 8 \
@@ -119,6 +121,7 @@ python train.py --weight_bits 8 \
 
 After training with the above settings, some checkpoints with good accuracy-efficiency trade-off can be acquired, but it's still not their best performance due to the complex multi-objective optimization. We can start from the best checkpoint, set ***beta*** to be 115 and run the above training process again for a lower metric. After that, we select some new checkpoints with accuracy lower than 75% (around 74%) and fix its precision for finetuning 1 more epoch with [SWA](https://arxiv.org/abs/1904.11943). In this process, the metric will be fixed while the accuracy can be improved by 0.5%.
 ```
+cd adj_quant
 python train.py --weight_bits 8 \
                 --act_bits 8 \
                 --swish_bits 8 \

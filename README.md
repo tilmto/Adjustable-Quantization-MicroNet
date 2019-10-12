@@ -140,7 +140,7 @@ python train.py --weight_bits 8 \
 ```
 ***swa_delay*** specifies the delay from the beginning of the training procsess to the first time of recording weights. ***swa_freq*** is the frequency to record weights. ***fine_tune*** enables the finetune mode which fixing the precision and metric.
 
-During finetung, we increase ***alpha*** to enable the model to focus more on classification error. To achieve better results, we repeat the above finetuning process 3 times from the generated SWA model with gradually lower learning rate. Finally we can achieve the best metric which satisfies the 75% accuracy requirement.
+During finetung, we increase ***alpha*** to enable the model to focus more on classification error. To achieve better results, we repeat the above finetuning process 3 times from the generated SWA models with gradually lower learning rate. Finally we can achieve the best metric which satisfies the 75% accuracy requirement.
 
 ##### Generate prerequired files step by step 
 If you want to generate the checkpoint files in pickle format in **pretrained** directory and **initial_thresholds.json** by yourself, you can follow the instructions here. We first convert the official EfficientNet-B0 checkpoint to our Slim-based version and then conduct the Quantization Aware Training to get the weight and threshold as initialization for Adjustable Quantization. To know more details about tensorflow-Slim usage, please refer to their official [github](https://github.com/tensorflow/models/tree/master/research/slim).

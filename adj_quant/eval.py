@@ -91,12 +91,12 @@ parser.add_argument('-r','--range',
 )
 parser.add_argument('--weight_path',
                     type=str,
-                    default='/home/yf22/pretrained/efficient_b0_autoaugment_quant/frozen_efficientnet_b0_quant_weights.pickle',
+                    default='../pretrained/efficient_b0_autoaugment_quant/frozen_efficientnet_b0_quant_weights.pickle',
                     help='float weight path',
 )
 parser.add_argument('--teacher_path',
                     type=str,
-                    default='/home/yf22/pretrained/efficient_b0_autoaugment/frozen_efficientnet_b0_weights.pickle',
+                    default='../pretrained/efficient_b0_autoaugment/frozen_efficientnet_b0_weights.pickle',
                     help='weight path of teacher network',
 )
 parser.add_argument('--weight_bits',

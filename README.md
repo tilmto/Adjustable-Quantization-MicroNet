@@ -8,8 +8,6 @@
 ### Solution
 Our method is called **Adjustable Quantization**, a finegrained mix-precision quantization scheme which is extremely fast to reach convergence started from a pretrained float32 model.
 
-Metric: 0.17894 @ 75.00% Top 1 accuracy on ImageNet
-
 ### Main Idea: Adjustable Quantization Range + Adjustable Precision
 To enable a finegrained mix-precision quantization on a light-weight model, we aim at refining the traditional quantization to be more adjustable according to the efficiency limitation. Based on the previous [Quantization Aware Training](https://arxiv.org/abs/1712.05877), we introduce channel-wise trainable scale factors for both quantization range and precision. To eliminate the effect of the [outliners](https://arxiv.org/abs/1803.08607), we introduce a trainable scale factor ***alpha*** for each channel to make the quantization range tp adjust itself during the quantization process (similar ideas can be found [here](http://openaccess.thecvf.com/content_CVPRW_2019/papers/Low-Power%20Image%20Recognition%20Challenge/Goncharenko_Winning_Solution_on_LPIRC-ll_Competition_CVPRW_2019_paper.pdf)). In addition, to further explore the compression potential, we give a channel-wise scale factor ***beta*** to the quantization precision so that each channel in different layers can learn to adjust its precision. Since number of parameters and FLOPS are all related with the channel precision settings, we explicitly introduce the #Params and #Flops into the loss function, controlling the trade-off between accuracy and efficiency. The quantization parameter in the [QAT paper](https://arxiv.org/abs/1712.05877) can be rewritten as ([ ] means rounding operation):
 
@@ -24,7 +22,7 @@ We introduce [Knowledge Distillation](https://arxiv.org/abs/1503.02531) and SWA 
 To enable a better initialization of EfficientNet-B0 before applying Adjustable Quantization, we first conduct tensorflow official Quantization Aware Training (QAT) to get the initial weights and initial quantization range. To be more specific, we implement EfficientNet-B0 structure in tensorflow [Slim](https://github.com/tensorflow/models/tree/master/research/slim) training package which has good support for QAT. Since the [official pretrained checkpoint](https://github.com/tensorflow/tpu/tree/master/models/official/efficientnet) of EfficientNet-B0 provided by the author uses TPU API, we write a script to convert the official pretrained checkpoint into our Slim-based model's checkpoint so that we can enable QAT directly within the Slim framework. After several epochs QAT, we can use the weight and quantization range of the final model as the initialization for further Adjustable Quantization. 
 
 ### Result
-It's easy to control the trade-off between accuracy and efficiency in our method. For the model exactly satisfying the 75% Top 1 accuracy requirement, we averagely use 2.94 bits and 4.87 bits to represent weights and activations, which is a extremely compact model with metric 0.17894 @ 75.00% Top 1 accuracy.
+It's easy to control the trade-off between accuracy and efficiency in our method. For the model exactly satisfying the 75% Top 1 accuracy requirement, we averagely use 2.94 bits and 4.87 bits to represent weights and activations, which is a extremely compact model with 75.00% Top 1 accuracy on ImageNet.
 
 Here's the distribution of the average precision of weights and activations in each layer of EfficientNet-B0 after Adjustable Quantization. 
 ![weight_bits](images/weight_bits_distrib.jpg)![act_bits](images/act_bits_distrib.jpg)
